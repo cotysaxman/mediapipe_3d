@@ -12,10 +12,14 @@ def calculate_pose():
     mp_pose = mp.solutions.pose
     mp_drawing = mp.solutions.drawing_utils
     mp_drawing_styles = mp.solutions.drawing_styles
-    filename = 'input.mp4'
+    filename = 'oldinput.mp4'
     capture = cv2.VideoCapture(filename)
+    width = capture.get(cv2.CAP_PROP_FRAME_WIDTH)
+    height = capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    largest_dimension = max(width, height)
+    fps = capture.get(cv2.CAP_PROP_FPS)
     writer = cv2.VideoWriter_fourcc(*'mp4v')
-    result = cv2.VideoWriter('output.mp4', writer, 30.0, (1920, 1080))
+    result = cv2.VideoWriter('output.mp4', writer, fps, (int(width), int(height)))
     result_text = open('output.txt', 'w')
     result_writer = csv.writer(result_text)
 
@@ -37,7 +41,13 @@ def calculate_pose():
                 landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style())
             cv2.imshow('MediaPipe Pose', cv2.flip(frame, 1))
             result.write(frame)
-            result_writer.writerow(enumerate(results.pose_landmarks.landmark))
+            for index, landmark in enumerate(results.pose_landmarks.landmark):
+                row = [str(index),
+                       str((landmark.x * width) / largest_dimension),
+                       str((landmark.y * height) / largest_dimension),
+                       str(landmark.z),
+                       str(landmark.visibility)]
+                result_writer.writerow(row)
             if cv2.waitKey(5) & 0xFF == 27:
                 break
 

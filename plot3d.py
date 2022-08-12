@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from load_poses import load_poses
-from pose_transformations import poses_as_outlines
+from pose_transformations import poses_as_outlines, full_pose_as_regression, maps_of_poses
 
 
 class Plot3D:
@@ -13,9 +13,9 @@ class Plot3D:
         self.all_poses = poses
 
     def limit_axes(self):
-        self.ax.set_xlim(0, 1)
+        self.ax.set_xlim(0, 0.5)
         self.ax.set_ylim(-1, 1)
-        self.ax.set_zlim(1, 0)
+        self.ax.set_zlim(0.75, 0.25)
 
     def __call__(self, i):
         outline = self.all_poses[i]
@@ -24,7 +24,7 @@ class Plot3D:
 
 
 if __name__ == '__main__':
-    poses = poses_as_outlines(load_poses())
+    poses = poses_as_outlines(maps_of_poses())
     ax = plt.axes(projection='3d')
     fig = ax.figure
     instance = Plot3D(ax, poses)

@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-from load_poses import load_poses
-from pose_transformations import poses_as_outlines, full_pose_as_regression, maps_of_poses
+from pose_transformations import poses_as_outlines, maps_of_poses
 
 
 class Plot3D:

@@ -12,7 +12,7 @@ def calculate_pose():
     mp_pose = mp.solutions.pose
     mp_drawing = mp.solutions.drawing_utils
     mp_drawing_styles = mp.solutions.drawing_styles
-    filename = 'oldinput.mp4'
+    filename = 'input.mp4'
     capture = cv2.VideoCapture(filename)
     width = capture.get(cv2.CAP_PROP_FRAME_WIDTH)
     height = capture.get(cv2.CAP_PROP_FRAME_HEIGHT)

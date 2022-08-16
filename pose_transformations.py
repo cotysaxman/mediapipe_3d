@@ -13,6 +13,14 @@ def derivative_of_two_joints(pose_set, joint_indices):
     ], 1)
 
 
+def slope_of_two_joints(pose_set, joint_indices):
+    return [LinearRegression().fit(
+        np.array([pose[index]["x"] for index in joint_indices]).reshape(-1, 1),
+        np.array([pose[index]["y"] for index in joint_indices])
+    ).coef_[0] for pose in pose_set
+    ]
+
+
 def pose_centers(pose_set):
     return [{key: mean([point[key] for point in pose]) for key in pose[0].keys()} for pose in pose_set]
 

@@ -1,132 +1,122 @@
 import math
+from dataclasses import dataclass
+
 import numpy as np
+from numpy import ndarray
 from sklearn.linear_model import LinearRegression
-from load_poses import load_poses
+from load_poses import load_poses, PoseLandmark
 from statistics import mean
 
 
-def derivative_of_two_joints(pose_set, joint_indices):
+@dataclass
+class Point:
+    x: float
+    y: float
+    z: float = 0.0
+
+
+@dataclass
+class TimeSeriesPoint:
+    x: [float]
+    y: [float]
+    z: [float]
+
+
+def derivative_of_two_joints(pose_set: [PoseLandmark], joint_indices: [int]) -> ndarray:
     return np.gradient([LinearRegression().fit(
-        np.array([pose[index]["x"] for index in joint_indices]).reshape(-1, 1),
-        np.array([pose[index]["y"] for index in joint_indices])
+        np.array([pose[index].x for index in joint_indices]).reshape(-1, 1),
+        np.array([pose[index].y for index in joint_indices])
     ).coef_[0] for pose in pose_set
-    ], 1)
+                        ], 1)
 
 
-def slope_of_two_joints(pose_set, joint_indices):
+def slope_of_two_joints(pose_set: [PoseLandmark], joint_indices: [int]) -> [float]:
     return [LinearRegression().fit(
-        np.array([pose[index]["x"] for index in joint_indices]).reshape(-1, 1),
-        np.array([pose[index]["y"] for index in joint_indices])
+        np.array([pose[index].x for index in joint_indices]).reshape(-1, 1),
+        np.array([pose[index].y for index in joint_indices])
     ).coef_[0] for pose in pose_set
-    ]
+            ]
 
 
-def pose_centers(pose_set):
-    return [{key: mean([point[key] for point in pose]) for key in pose[0].keys()} for pose in pose_set]
+def pose_centers(pose_set: [[PoseLandmark]]) -> [Point]:
+    return [Point(
+        x=mean([landmark.x for landmark in pose]),
+        y=mean([landmark.y for landmark in pose]),
+        z=mean([landmark.z for landmark in pose])
+    ) for pose in pose_set]
 
 
-def pose_centers_subset(pose_set, keypoints):
-    return [{
-        key: mean([point[key] for index, point in enumerate(pose) if index in keypoints])
-        for key in pose[0].keys()
-    } for pose in pose_set]
+def pose_centers_subset(pose_set: [PoseLandmark], key_points: [int]) -> [Point]:
+    return [Point(
+        x=mean([landmark.x for landmark in pose if landmark.joint_index in key_points]),
+        y=mean([landmark.y for landmark in pose if landmark.joint_index in key_points]),
+        z=mean([landmark.z for landmark in pose if landmark.joint_index in key_points])
+    ) for pose in pose_set]
 
 
-def size_by_regression():
+def size_by_regression() -> [float]:
     pose_set = full_pose_as_regression()
     centers = pose_centers(pose_set)
     return [
         mean([
-            math.dist([point["x"], point["y"]], [centers[index]["x"], centers[index]["y"]])
-            for index, point in enumerate(pose)
-        ]) for pose in pose_set
+            math.dist([point.x, point.y], [centers[frame].x, centers[frame].y])
+            for point in pose
+        ]) for frame, pose in enumerate(pose_set)
     ]
 
 
-def full_pose_as_regression():
-    mapped = maps_of_poses()
-    by_joint = split_by_joint(mapped)
-    as_regression = [[{
-        "joint_index": index,
-        "x": regressed["x"],
-        "y": regressed["y"],
-        "z": 0.0,
-        "visibility": 0.0
-    } for regressed in binomial_regression_of_joint(joint)
-    ] for index, joint in enumerate(by_joint)
-    ]
-    as_regressed_complete_frames = [
-        [regressed[frame] for regressed in as_regression] for frame in range(len(maps_of_poses()))
-    ]
-
-    return as_regressed_complete_frames
+def full_pose_as_regression() -> [[PoseLandmark]]:
+    mapped = load_poses()
+    by_joint = [binomial_regression_of_joint(joint) for joint in split_by_joint(mapped)]
+    return [[PoseLandmark(
+        joint_index=joint_index,
+        x=regressed[frame].x,
+        y=regressed[frame].y
+    ) for joint_index, regressed in enumerate(by_joint)] for frame in range(len(mapped))]
 
 
-def binomial_regression_of_joint(joint_frames):
-    frames = range(len(joint_frames["x"]))
+def binomial_regression_of_joint(joint_frames: TimeSeriesPoint) -> [Point]:
+    frames = range(len(joint_frames.x))
     regression_inputs = np.array(frames).reshape(-1, 1)
-    regression_outputs = np.array([[joint_frames["x"][frame], joint_frames["y"][frame]] for frame in frames])
+    regression_outputs = np.array([[joint_frames.x[frame], joint_frames.y[frame]] for frame in frames])
     model = LinearRegression().fit(regression_inputs, regression_outputs)
-    return [{"x": point[0], "y": point[1]} for point in model.predict(regression_inputs)]
+    return [Point(x=point[0], y=point[1]) for point in model.predict(regression_inputs)]
 
 
-def poses_as_outlines(frames):
+def poses_as_outlines(frames: [[PoseLandmark]]) -> [TimeSeriesPoint]:
     return [joint_list_to_outline(joint_list) for joint_list in frames]
 
 
-def maps_of_poses():
-    raw_poses = load_poses()
-    return [[raw_joint_to_map(joint) for joint in frame] for frame in raw_poses]
-
-
-def split_by_joint(joint_maps):
-    output = []
+def split_by_joint(joint_maps: [[PoseLandmark]]):
+    output = [TimeSeriesPoint(x=[], y=[], z=[]) for _ in range(33)]
     for frame in joint_maps:
         for keypoint in frame:
-            joint_index = keypoint["joint_index"]
-            if joint_index >= len(output):
-                output.append({"x": [], "y": [], "z": [], "visibility": []})
-            output[joint_index]["x"].append(keypoint["x"])
-            output[joint_index]["y"].append(keypoint["y"])
-            output[joint_index]["z"].append(keypoint["z"])
-            output[joint_index]["visibility"].append(keypoint["visibility"])
+            append_values(output[keypoint.joint_index], keypoint)
     return output
 
 
-def raw_joint_to_map(raw_input):
-    output = {
-        "joint_index": int(raw_input[0]),
-        "x": float(raw_input[1]),
-        "y": float(raw_input[2]),
-        "z": float(raw_input[3]),
-        "visibility": float(raw_input[4])
+def index_joint_list(input_list: [PoseLandmark]) -> dict[int, PoseLandmark]:
+    return {
+        joint.joint_index: joint
+        for joint in input_list
     }
-    return output
 
 
-def index_joint_list(input_list):
-    joints = {}
-    for joint in input_list:
-        joints[int(joint['joint_index'])] = {'x': joint['x'], 'y': joint['y'], 'z': joint['z']}
-
-    return joints
-
-
-def distance_3d(first, second):
+def distance_3d(first: dict[str, float], second: dict[str, float]) -> float:
     return ((second['x'] - first['x']) ** 2 + (second['y'] - first['y']) ** 2 + (second['z'] - first['z']) ** 2) ** 0.5
 
 
-def midpoint_3d(first, second):
-    return {
-        'x': (first['x'] + second['x']) / 2,
-        'y': (first['y'] + second['y']) / 2,
-        'z': (first['z'] + second['z']) / 2
-    }
+def midpoint_3d(first: PoseLandmark, second: PoseLandmark) -> PoseLandmark:
+    return PoseLandmark(
+        x=(first.x + second.x) / 2,
+        y=(first.y + second.y) / 2,
+        z=(first.z + second.z) / 2
+    )
 
 
 # pose points into 3d figure (fancier)
-def joint_list_to_outline(input_list):
-    output = {'x': [], 'y': [], 'z': []}
+def joint_list_to_outline(input_list: [PoseLandmark]) -> TimeSeriesPoint:
+    output = TimeSeriesPoint(x=[], y=[], z=[])
     joints = index_joint_list(input_list)
 
     append_values(output, joints[10])
@@ -190,8 +180,8 @@ def joint_list_to_outline(input_list):
 
 
 # Turns pose points into simple 3d stick figure
-def joint_list_to_outline_simple(input_list):
-    output = {'x': [], 'y': [], 'z': []}
+def joint_list_to_outline_simple(input_list: [PoseLandmark]) -> TimeSeriesPoint:
+    output = TimeSeriesPoint(x=[], y=[], z=[])
     joints = index_joint_list(input_list)
 
     append_values(output, joints[10])
@@ -246,9 +236,10 @@ def joint_list_to_outline_simple(input_list):
     return output
 
 
-def append_values(destination, value):
-    for key in value.keys():
-        destination[key].append(value[key])
+def append_values(destination: TimeSeriesPoint, value: PoseLandmark):
+    destination.x.append(value.x)
+    destination.y.append(value.y)
+    destination.z.append(value.z)
 
 
 if __name__ == '__main__':

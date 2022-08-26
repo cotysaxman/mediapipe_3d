@@ -1,14 +1,9 @@
-# This is a sample Python script.
-
-# Press ⌃R to execute it or replace it with your code.
-# Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
-
 import cv2
 import mediapipe as mp
 import csv
 
 
-def calculate_pose():
+def calculate_pose_from_video():
     mp_pose = mp.solutions.pose
     mp_drawing = mp.solutions.drawing_utils
     mp_drawing_styles = mp.solutions.drawing_styles
@@ -57,6 +52,6 @@ def calculate_pose():
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    calculate_pose()
+    calculate_pose_from_video()
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/

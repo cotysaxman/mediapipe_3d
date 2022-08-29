@@ -134,27 +134,30 @@ def normalized_looping_pose(pose_map: [[PoseLandmark]], feature: [float]) -> [[P
         for frame in frames
     ]
     normalized = [[cycle[0], cycle[1] + index] for index in range(3) for cycle in relative_cycles]
-    cycle_length = median([len(cycle) for cycle in cycles])
+    cycle_length = int(median([len(cycle) for cycle in cycles]))
     by_joint = split_by_joint(pose_map)
     output = [[] for _ in range(cycle_length)]
-    regression_inputs = np.array([value[1] for value in normalized]).reshape(-1, 1)
+    regression_inputs = np.array([
+        [value[1], np.sin(value[1]), np.cos(value[1])]
+        for value in normalized
+    ]).reshape(-1, 3)
     for joint_index in range(33):
         regression_outputs = np.array([[
             by_joint[joint_index].x[value[0]],
             by_joint[joint_index].y[value[0]]
         ] for value in normalized
         ])
-        polynomial_regression = PolynomialFeatures(degree=30)
+        polynomial_regression = PolynomialFeatures(degree=6)
         polynomial_inputs = polynomial_regression.fit_transform(regression_inputs)
         model = LinearRegression()
         model.fit(polynomial_inputs, regression_outputs)
-        indices = np.array([
+        indices = np.array([[index, np.sin(index), np.cos(index)] for index in [
             (frame / cycle_length) + 0.5 for frame in range(cycle_length * 2)
-        ]).reshape(cycle_length * 2, 1)
+        ]]).reshape(cycle_length * 2, 3)
         positions_to_predict = polynomial_regression.transform(indices)
         predictions = model.predict(positions_to_predict)
         for frame in range(cycle_length):
-            ratio = frame / cycle_length
+            ratio = 0.25
             output[frame].append(PoseLandmark(
                 joint_index=joint_index,
                 x=predictions[frame][0] * ratio + predictions[frame + cycle_length][0] * (1 - ratio),
